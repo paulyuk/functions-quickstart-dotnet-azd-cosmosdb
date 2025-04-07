@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "functions_quickstart_dotnet_azd_cosmosdb": {
+      "commandName": "Project",
+      "commandLineArgs": "--port 7040",
+      "launchBrowser": false
+    }
+  }
+}
