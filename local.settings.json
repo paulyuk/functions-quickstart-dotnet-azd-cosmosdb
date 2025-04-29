@@ -3,7 +3,7 @@
     "Values": {
       "AzureWebJobsStorage": "UseDevelopmentStorage=true",
       "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
-      "COSMOS_CONNECTION__accountEndpoint": "https://cosmos-z7ezx3jqiqgvk.documents.azure.com:443/",
+      "COSMOS_CONNECTION__accountEndpoint": "https://{accountName}.documents.azure.com:443/",
       "COSMOS_DATABASE_NAME": "documents-db",
       "COSMOS_CONTAINER_NAME": "documents"
     }
