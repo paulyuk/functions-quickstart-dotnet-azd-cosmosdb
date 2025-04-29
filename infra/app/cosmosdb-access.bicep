@@ -30,7 +30,6 @@ module nosqlAppAssignment '../core/database/cosmos-db/nosql/role/assignment.bice
     targetAccountName: database.name // Existing account
     roleDefinitionId: nosqlDefinition.outputs.id // New role definition
     principalId: appPrincipalId // Principal to assign role
-    principalType: 'ServicePrincipal' // Principal type for assigning role
   }
 }
 
@@ -40,6 +39,5 @@ module nosqlUserAssignment '../core/database/cosmos-db/nosql/role/assignment.bic
     targetAccountName: database.name // Existing account
     roleDefinitionId: nosqlDefinition.outputs.id // New role definition
     principalId: userPrincipalId ?? '' // Principal to assign role
-    principalType: 'User' // Principal type for assigning role
   }
 }

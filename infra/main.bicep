@@ -24,7 +24,6 @@ param resourceGroupName string = ''
 param storageAccountName string = ''
 param vNetName string = ''
 param disableLocalAuth bool = true
-param cosmosDbAccountName string = ''
 
 @description('Id of the user or app to assign application roles')
 param principalId string = ''
@@ -94,23 +93,12 @@ module cosmosDb './app/database.bicep' = {
   name: 'cosmosDb'
   scope: rg
   params: {
-    accountName: !empty(cosmosDbAccountName) ? cosmosDbAccountName : '${abbrs.documentDBDatabaseAccounts}${resourceToken}'
+    resourceToken: resourceToken
     location: location
     tags: tags
     databaseName: cosmosSettings.database
-    containerNames: [cosmosSettings.container]
-    partitionKeyName: cosmosSettings.partitionKey
-    vectorPropertyName: 'vectors' // Default value for vector property, not used in basic setup
-  }
-}
-
-// Grant Cosmos DB Data Contributor role to the user-assigned identity
-module cosmosRoleAssignment 'app/cosmosdb-access.bicep' = {
-  name: 'cosmosRoleAssignment'
-  scope: rg
-  params: {
-    databaseAccountName: cosmosDb.outputs.accountName
-    appPrincipalId: apiUserAssignedIdentity.outputs.identityPrincipalId
+    containerName: cosmosSettings.container
+    appPrincipalIds: [apiUserAssignedIdentity.outputs.identityPrincipalId]
     userPrincipalId: principalId
   }
 }
@@ -132,7 +120,7 @@ module api './app/api.bicep' = {
     identityClientId: apiUserAssignedIdentity.outputs.identityClientId
     appSettings: {
       // Cosmos DB connection settings from environment variables
-      COSMOS_CONNECTION__accountEndpoint: cosmosDb.outputs.endpoint
+      COSMOS_CONNECTION__accountEndpoint: cosmosDb.outputs.cosmosDbAccountEndpoint
       COSMOS_CONNECTION__credential: 'managedidentity'
       COSMOS_CONNECTION__clientId: apiUserAssignedIdentity.outputs.identityClientId
       COSMOS_DATABASE_NAME: cosmosSettings.database
@@ -228,6 +216,6 @@ output SERVICE_API_NAME string = api.outputs.SERVICE_API_NAME
 output AZURE_FUNCTION_NAME string = api.outputs.SERVICE_API_NAME
 
 // Cosmos DB Outputs
-output COSMOS_CONNECTION__accountEndpoint string = cosmosDb.outputs.endpoint
+output COSMOS_CONNECTION__accountEndpoint string = cosmosDb.outputs.cosmosDbAccountEndpoint
 output COSMOS_DATABASE_NAME string = cosmosSettings.database
 output COSMOS_CONTAINER_NAME string = cosmosSettings.container

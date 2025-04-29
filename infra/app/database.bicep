@@ -1,121 +1,160 @@
-metadata description = 'Create database accounts.'
-
-param location string = resourceGroup().location
-param tags object = {}
-
-param accountName string
+param location string
+param tags object
+param resourceToken string
+param appPrincipalIds array
+param userPrincipalId string
 param databaseName string
-param containerNames array
-param partitionKeyName string
-param vectorPropertyName string
+param containerName string
 
-var database = {
-  name: databaseName // Database for application
-}
+@description('Enables serverless for this account. Defaults to false.')
+param enableServerless bool = true
 
-// concatenate / with the partition key and vector property names
-var partitionKeyPath = '/${partitionKeyName}'
-var vectorPath = '/${vectorPropertyName}'
-var vectorExcludedIndexPath = '${vectorPath}/?'
+@description('Enables NoSQL vector search for this account. Defaults to false.')
+param enableNoSQLVectorSearch bool = false
 
-var containers = [for containerName in containerNames:{
-    name: containerName // Container for products
-    partitionKeyPaths: [
-      partitionKeyPath // Partition for product data
+@description('Enables NoSQL full text search for this account. Defaults to false.')
+param enableNoSQLFullTextSearch bool = false
+
+@description('The amount of throughput set. If setThroughput is enabled, defaults to 400.')
+param throughput int = 400
+
+@description('Enables throughput setting at this resource level. Defaults to true.')
+param setThroughput bool = false
+
+@description('Enables autoscale. If setThroughput is enabled, defaults to false.')
+param autoscale bool = true
+
+var options = setThroughput
+  ? autoscale
+      ? {
+          autoscaleSettings: {
+            maxThroughput: throughput
+          }
+        }
+      : {
+          throughput: throughput
+        }
+  : {}
+
+resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' = {
+  name: 'cosmos-${resourceToken}'
+  location: location
+  tags: tags
+  kind: 'GlobalDocumentDB'
+  properties: {
+    databaseAccountOfferType: 'Standard'
+    locations: [
+      {
+        locationName: location
+        failoverPriority: 0
+      }
     ]
-    indexingPolicy: {
-      automatic: true
-      indexingMode: 'consistent'
-      includedPaths: [
-        {
-          path: '/*'
-        }
-      ]
-      excludedPaths: [
-        {
-          path: vectorExcludedIndexPath
-        }
-      ]
-      vectorIndexes: [
-        {
-          path: vectorPath
-          type: 'quantizedFlat'   //'diskANN'
-        }
-      ]
-    }
-    vectorEmbeddingPolicy: {
-      vectorEmbeddings: [
-        {
-          path: vectorPath
-          dataType: 'float32'
-          dimensions: 1536
-          distanceFunction: 'cosine'
-        }
-      ]
-    }
-  }
-]
-
-module cosmosDbAccount '../core/database/cosmos-db/nosql/account.bicep' = {
-  name: 'cosmos-db-account'
-  params: {
-    name: accountName
-    location: location
-    tags: tags
-    enableServerless: true
-    enableVectorSearch: true
-    enableNoSQLFullTextSearch: false
-    disableKeyBasedAuth: true
+    disableLocalAuth: true
+    capabilities: union(
+      (enableServerless)
+        ? [
+            {
+              name: 'EnableServerless'
+            }
+          ]
+        : [],
+      (enableNoSQLVectorSearch)
+        ? [
+            {
+              name: 'EnableNoSQLVectorSearch'
+            }
+          ]
+        : [],
+      (enableNoSQLFullTextSearch)
+        ? [
+            {
+              name: 'EnableNoSQLFullTextSearch'
+            }
+          ]
+        : []  
+    )
   }
 }
-
-module cosmosDbDatabase '../core/database/cosmos-db/nosql/database.bicep' = {
-  name: 'cosmos-db-database-${database.name}'
-  params: {
-    name: database.name
-    parentAccountName: cosmosDbAccount.outputs.name
-    tags: tags
-    setThroughput: false
-  }
-}
-
-module cosmosDbContainers '../core/database/cosmos-db/nosql/container.bicep' = [
-  for (container, _) in containers: {
-    name: 'cosmos-db-container-${container.name}'
-    params: {
-      name: container.name
-      parentAccountName: cosmosDbAccount.outputs.name
-      parentDatabaseName: cosmosDbDatabase.outputs.name
-      tags: tags
-      setThroughput: false
-      partitionKeyPaths: container.partitionKeyPaths
-      indexingPolicy: container.indexingPolicy
-      vectorEmbeddingPolicy: container.vectorEmbeddingPolicy
+ 
+resource cosmosDbDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-11-15' = {
+  parent: cosmosDbAccount
+  name: !empty(databaseName) ? databaseName : 'db-${resourceToken}'
+  properties: {
+    resource: {
+      id: !empty(databaseName) ? databaseName : 'db-${resourceToken}'
     }
   }
-]
-
-module cosmosDbLeases '../core/database/cosmos-db/nosql/container.bicep' = {
-  name: 'cosmos-db-container-leases'
-  params: {
-    name: 'leases'
-    parentAccountName: cosmosDbAccount.outputs.name
-    parentDatabaseName: cosmosDbDatabase.outputs.name
-    tags: tags
-    setThroughput: false
-    partitionKeyPaths: ['/id']
+}
+ 
+resource cosmosDbContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-11-15' = {
+  parent: cosmosDbDatabase
+  name: !empty(containerName) ? containerName : 'container-${resourceToken}'
+  properties: {
+    options: options
+    resource: {
+      id: !empty(containerName) ? containerName : 'container-${resourceToken}'
+      partitionKey: {
+        paths: [
+          '/id'
+        ]
+        kind: 'MultiHash'
+        version: 2
+      }
+      indexingPolicy: {
+        automatic: true
+        indexingMode: 'consistent'
+        includedPaths: [
+          {
+            path: '/*'
+          }
+        ]
+      }
+    }
   }
 }
-
-output endpoint string = cosmosDbAccount.outputs.endpoint
-output accountName string = cosmosDbAccount.outputs.name
-output connectionString string = cosmosDbAccount.outputs.connectionString
-
-output database object = {
-  name: cosmosDbDatabase.outputs.name
-}
-output containers array = [
-  for (_, index) in containers: {
-    name: cosmosDbContainers[index].outputs.name
+ 
+resource definition 'Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions@2024-11-15' = {
+  name: guid('nosql-role-definition', cosmosDbAccount.id)
+  parent: cosmosDbAccount
+  properties: {
+    assignableScopes: [
+      cosmosDbAccount.id
+    ]
+    permissions: [
+      {
+        dataActions: [
+          'Microsoft.DocumentDB/databaseAccounts/readMetadata' // Read account metadata
+          'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/items/*' // Create items
+          'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/*' // Manage items
+        ]
+      }
+    ]
+    roleName: 'Write to Azure Cosmos DB for NoSQL data plane'
+    type: 'CustomRole'
   }
-]
+}
+ 
+resource appRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-11-15' = [for appPrincipalId in appPrincipalIds: {
+  name: guid(definition.id, appPrincipalId, cosmosDbAccount.id)
+  parent: cosmosDbAccount
+  properties: {
+    principalId: appPrincipalId
+    roleDefinitionId: definition.id
+    scope: cosmosDbAccount.id
+  }
+}]
+ 
+resource userRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-11-15' = if (!empty(userPrincipalId)) {
+  name: guid(definition.id, userPrincipalId, cosmosDbAccount.id)
+  parent: cosmosDbAccount
+  properties: {
+    principalId: userPrincipalId ?? ''
+    roleDefinitionId: definition.id
+    scope: cosmosDbAccount.id
+  }
+}
+ 
+output cosmosDbName string = cosmosDbDatabase.name
+output cosmosDbContainer string = cosmosDbContainer.name
+output cosmosDbAccountEndpoint string = cosmosDbAccount.properties.documentEndpoint
+output cosmosDbEndpoint string = cosmosDbAccount.properties.documentEndpoint

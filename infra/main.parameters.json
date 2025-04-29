@@ -11,6 +11,9 @@
     "skipVnet": {
       "value": "${SKIP_VNET}"
     },
+    "principalId": {
+      "value": "${AZURE_PRINCIPAL_ID}"
+    },
     "cosmosDatabaseName": {
       "value": "${COSMOS_DATABASE_NAME=documents-db}"
     },
