@@ -4,9 +4,19 @@ An Azure Functions QuickStart project that demonstrates how to use a Cosmos DB T
 
 ## Architecture
 
-![Azure Functions Cosmos DB Trigger Architecture](./diagrams/architecture.drawio)
+![Azure Functions Cosmos DB Trigger Architecture](./diagrams/architecture.drawio.png)
 
-This architecture shows how the Azure Function is triggered automatically when documents are created or modified in Cosmos DB through the change feed mechanism. The lease container tracks which changes have been processed to ensure reliability and support for multiple function instances.
+This architecture shows how the Azure Function is triggered automatically when documents are created or modified in Cosmos DB through the change feed mechanism. The key components include:
+
+- **Client Applications**: Create or update documents in Cosmos DB 
+- **Azure Cosmos DB**: Stores documents and provides change feed capabilities
+- **Change Feed**: Detects modifications to documents in Cosmos DB
+- **Azure Function with Cosmos DB Trigger**: Executes automatically when changes are detected
+- **Lease Container**: Tracks which changes have been processed to ensure reliability and support for multiple function instances
+- **Azure Monitor**: Provides logging and metrics for the function execution
+- **Downstream Services**: Optional integration with other services that receive processed data
+
+This serverless architecture enables highly scalable, event-driven processing with built-in resiliency.
 
 ## Top Use Cases
 
