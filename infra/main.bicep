@@ -6,15 +6,48 @@ targetScope = 'subscription'
 param environmentName string
 
 @minLength(1)
-@description('Primary location for all resources')
-@allowed(['australiaeast', 'eastasia', 'eastus', 'eastus2', 'northeurope', 'southcentralus', 'southeastasia', 'swedencentral', 'uksouth', 'westus2', 'eastus2euap'])
+@description('Primary location for all resources & Flex Consumption Function App')
+@allowed([
+  'australiaeast'
+  'australiasoutheast'
+  'brazilsouth'
+  'canadacentral'
+  'centralindia'
+  'centralus'
+  'eastasia'
+  'eastus'
+  'eastus2'
+  'eastus2euap'
+  'francecentral'
+  'germanywestcentral'
+  'italynorth'
+  'japaneast'
+  'koreacentral'
+  'northcentralus'
+  'northeurope'
+  'norwayeast'
+  'southafricanorth'
+  'southcentralus'
+  'southeastasia'
+  'southindia'
+  'spaincentral'
+  'swedencentral'
+  'uaenorth'
+  'uksouth'
+  'ukwest'
+  'westcentralus'
+  'westeurope'
+  'westus'
+  'westus2'
+  'westus3'
+])
 @metadata({
   azd: {
     type: 'location'
   }
 })
 param location string
-param skipVnet bool = false
+param vnetEnabled bool
 param apiServiceName string = ''
 param apiUserAssignedIdentityName string = ''
 param applicationInsightsName string = ''
@@ -23,10 +56,14 @@ param logAnalyticsName string = ''
 param resourceGroupName string = ''
 param storageAccountName string = ''
 param vNetName string = ''
-param disableLocalAuth bool = true
+@description('Id of the user identity to be used for testing and debugging. This is not required in production. Leave empty if not needed.')
+param principalId string = deployer().objectId
 
-@description('Id of the user or app to assign application roles')
-param principalId string = ''
+var abbrs = loadJsonContent('./abbreviations.json')
+var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
+var tags = { 'azd-env-name': environmentName }
+var functionAppName = !empty(apiServiceName) ? apiServiceName : '${abbrs.webSitesFunctions}api-${resourceToken}'
+var deploymentStorageContainerName = 'app-package-${take(functionAppName, 32)}-${take(toLower(uniqueString(functionAppName, resourceToken)), 7)}'
 
 // Cosmos DB settings - parameterized
 @description('The name of the Cosmos DB database')
@@ -41,20 +78,6 @@ param cosmosPartitionKey string = 'id'
 @description('The name of the lease container for Cosmos DB change feed')
 param cosmosLeaseContainer string = 'leases'
 
-// Cosmos DB settings consolidated
-var cosmosSettings = {
-  database: cosmosDatabaseName
-  container: cosmosContainerName
-  partitionKey: cosmosPartitionKey
-  leaseContainer: cosmosLeaseContainer
-}
-
-var abbrs = loadJsonContent('./abbreviations.json')
-var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
-var tags = { 'azd-env-name': environmentName }
-var functionAppName = !empty(apiServiceName) ? apiServiceName : '${abbrs.webSitesFunctions}api-${resourceToken}'
-var deploymentStorageContainerName = 'app-package-${take(functionAppName, 32)}-${take(toLower(uniqueString(functionAppName, resourceToken)), 7)}'
-
 // Organize resources in a resource group
 resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
   name: !empty(resourceGroupName) ? resourceGroupName : '${abbrs.resourcesResourceGroups}${environmentName}'
@@ -62,44 +85,31 @@ resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
   tags: tags
 }
 
-// User assigned managed identity to be used by the function app to reach storage and service bus
-module apiUserAssignedIdentity './core/identity/userAssignedIdentity.bicep' = {
+// User assigned managed identity to be used by the function app to reach storage and other dependencies
+// Assign specific roles to this identity in the RBAC module
+module apiUserAssignedIdentity 'br/public:avm/res/managed-identity/user-assigned-identity:0.4.1' = {
   name: 'apiUserAssignedIdentity'
   scope: rg
   params: {
     location: location
     tags: tags
-    identityName: !empty(apiUserAssignedIdentityName) ? apiUserAssignedIdentityName : '${abbrs.managedIdentityUserAssignedIdentities}api-${resourceToken}'
+    name: !empty(apiUserAssignedIdentityName) ? apiUserAssignedIdentityName : '${abbrs.managedIdentityUserAssignedIdentities}api-${resourceToken}'
   }
 }
 
-// The application backend is a function app
-module appServicePlan './core/host/appserviceplan.bicep' = {
+// Create an App Service Plan to group applications under the same payment plan and SKU
+module appServicePlan 'br/public:avm/res/web/serverfarm:0.1.1' = {
   name: 'appserviceplan'
   scope: rg
   params: {
     name: !empty(appServicePlanName) ? appServicePlanName : '${abbrs.webServerFarms}${resourceToken}'
-    location: location
-    tags: tags
     sku: {
       name: 'FC1'
       tier: 'FlexConsumption'
     }
-  }
-}
-
-// Cosmos DB Setup
-module cosmosDb './app/database.bicep' = {
-  name: 'cosmosDb'
-  scope: rg
-  params: {
-    resourceToken: resourceToken
+    reserved: true
     location: location
     tags: tags
-    databaseName: cosmosSettings.database
-    containerName: cosmosSettings.container
-    appPrincipalIds: [apiUserAssignedIdentity.outputs.identityPrincipalId]
-    userPrincipalId: principalId
   }
 }
 
@@ -110,57 +120,99 @@ module api './app/api.bicep' = {
     name: functionAppName
     location: location
     tags: tags
-    applicationInsightsName: monitoring.outputs.applicationInsightsName
-    appServicePlanId: appServicePlan.outputs.id
+    applicationInsightsName: monitoring.outputs.name
+    appServicePlanId: appServicePlan.outputs.resourceId
     runtimeName: 'dotnet-isolated'
     runtimeVersion: '8.0'
     storageAccountName: storage.outputs.name
+    enableBlob: storageEndpointConfig.enableBlob
+    enableQueue: storageEndpointConfig.enableQueue
+    enableTable: storageEndpointConfig.enableTable
     deploymentStorageContainerName: deploymentStorageContainerName
-    identityId: apiUserAssignedIdentity.outputs.identityId
-    identityClientId: apiUserAssignedIdentity.outputs.identityClientId
+    identityId: apiUserAssignedIdentity.outputs.resourceId
+    identityClientId: apiUserAssignedIdentity.outputs.clientId
     appSettings: {
-      // Cosmos DB connection settings from environment variables
-      COSMOS_CONNECTION__accountEndpoint: cosmosDb.outputs.cosmosDbAccountEndpoint
-      COSMOS_CONNECTION__credential: 'managedidentity'
-      COSMOS_CONNECTION__clientId: apiUserAssignedIdentity.outputs.identityClientId
-      COSMOS_DATABASE_NAME: cosmosSettings.database
-      COSMOS_CONTAINER_NAME: cosmosSettings.container
     }
-    virtualNetworkSubnetId: skipVnet ? '' : serviceVirtualNetwork.outputs.appSubnetID
+    virtualNetworkSubnetId: vnetEnabled ? serviceVirtualNetwork.outputs.appSubnetID : ''
   }
 }
 
-// Backing storage for Azure functions api
-module storage './core/storage/storage-account.bicep' = {
+// Cosmos DB settings consolidated
+var cosmosSettings = {
+  database: cosmosDatabaseName
+  container: cosmosContainerName
+  partitionKey: cosmosPartitionKey
+  leaseContainer: cosmosLeaseContainer
+}
+
+// Cosmos DB Setup
+module cosmosDb './app/db.bicep' = {
+  name: 'cosmosDb'
+  scope: rg
+  params: {
+    resourceToken: resourceToken
+    location: location
+    tags: tags
+    databaseName: cosmosSettings.database
+    containerName: cosmosSettings.container
+    appPrincipalIds: [apiUserAssignedIdentity.outputs.principalId]
+    userPrincipalId: principalId
+  }
+}
+
+// Backing storage for Azure functions backend API
+module storage 'br/public:avm/res/storage/storage-account:0.8.3' = {
   name: 'storage'
   scope: rg
   params: {
     name: !empty(storageAccountName) ? storageAccountName : '${abbrs.storageStorageAccounts}${resourceToken}'
+    allowBlobPublicAccess: false
+    allowSharedKeyAccess: false // Disable local authentication methods as per policy
+    dnsEndpointType: 'Standard'
+    publicNetworkAccess: vnetEnabled ? 'Disabled' : 'Enabled'
+    networkAcls: vnetEnabled ? {
+      defaultAction: 'Deny'
+      bypass: 'None'
+    } : {
+      defaultAction: 'Allow'
+      bypass: 'AzureServices'
+    }
+    blobServices: {
+      containers: [{name: deploymentStorageContainerName}]
+    }
+    minimumTlsVersion: 'TLS1_2'  // Enforcing TLS 1.2 for better security
     location: location
     tags: tags
-    containers: [{name: deploymentStorageContainerName}]
-    publicNetworkAccess: skipVnet ? 'Enabled' : 'Disabled'
-    networkAcls: skipVnet ? {} : {
-      defaultAction: 'Deny'
-    }
   }
 }
 
-var storageRoleDefinitionId  = 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b' //Storage Blob Data Owner role
+// Define the configuration object locally to pass to the modules
+var storageEndpointConfig = {
+  enableBlob: true  // Required for AzureWebJobsStorage, .zip deployment, Event Hubs trigger and Timer trigger checkpointing
+  enableQueue: false  // Required for Durable Functions and MCP trigger
+  enableTable: false  // Required for Durable Functions and OpenAI triggers and bindings
+  enableFiles: false   // Not required, used in legacy scenarios
+  allowUserIdentityPrincipal: true   // Allow interactive user identity to access for testing and debugging
+}
 
-// Allow access from api to storage account using a managed identity
-module storageRoleAssignmentApi 'app/storage-Access.bicep' = {
-  name: 'storageRoleAssignmentapi'
+// Consolidated Role Assignments
+module rbac 'app/rbac.bicep' = {
+  name: 'rbacAssignments'
   scope: rg
   params: {
     storageAccountName: storage.outputs.name
-    roleDefinitionID: storageRoleDefinitionId
-    principalID: apiUserAssignedIdentity.outputs.identityPrincipalId
+    appInsightsName: monitoring.outputs.name
+    managedIdentityPrincipalId: apiUserAssignedIdentity.outputs.principalId
+    userIdentityPrincipalId: principalId
+    enableBlob: storageEndpointConfig.enableBlob
+    enableQueue: storageEndpointConfig.enableQueue
+    enableTable: storageEndpointConfig.enableTable
+    allowUserIdentityPrincipal: storageEndpointConfig.allowUserIdentityPrincipal
   }
 }
 
 // Virtual Network & private endpoint to blob storage
-module serviceVirtualNetwork 'app/vnet.bicep' =  if (!skipVnet) {
+module serviceVirtualNetwork 'app/vnet.bicep' =  if (vnetEnabled) {
   name: 'serviceVirtualNetwork'
   scope: rg
   params: {
@@ -170,46 +222,47 @@ module serviceVirtualNetwork 'app/vnet.bicep' =  if (!skipVnet) {
   }
 }
 
-module storagePrivateEndpoint 'app/storage-PrivateEndpoint.bicep' = if (!skipVnet) {
+module storagePrivateEndpoint 'app/storage-PrivateEndpoint.bicep' = if (vnetEnabled) {
   name: 'servicePrivateEndpoint'
   scope: rg
   params: {
     location: location
     tags: tags
     virtualNetworkName: !empty(vNetName) ? vNetName : '${abbrs.networkVirtualNetworks}${resourceToken}'
-    subnetName: skipVnet ? '' : serviceVirtualNetwork.outputs.peSubnetName
+    subnetName: vnetEnabled ? serviceVirtualNetwork.outputs.peSubnetName : '' // Keep conditional check for safety, though module won't run if !vnetEnabled
     resourceName: storage.outputs.name
+    enableBlob: storageEndpointConfig.enableBlob
+    enableQueue: storageEndpointConfig.enableQueue
+    enableTable: storageEndpointConfig.enableTable
   }
 }
 
-// Monitor application with Azure Monitor
-module monitoring './core/monitor/monitoring.bicep' = {
-  name: 'monitoring'
+// Monitor application with Azure Monitor - Log Analytics and Application Insights
+module logAnalytics 'br/public:avm/res/operational-insights/workspace:0.11.1' = {
+  name: '${uniqueString(deployment().name, location)}-loganalytics'
   scope: rg
   params: {
+    name: !empty(logAnalyticsName) ? logAnalyticsName : '${abbrs.operationalInsightsWorkspaces}${resourceToken}'
     location: location
     tags: tags
-    logAnalyticsName: !empty(logAnalyticsName) ? logAnalyticsName : '${abbrs.operationalInsightsWorkspaces}${resourceToken}'
-    applicationInsightsName: !empty(applicationInsightsName) ? applicationInsightsName : '${abbrs.insightsComponents}${resourceToken}'
-    disableLocalAuth: disableLocalAuth  
+    dataRetention: 30
   }
 }
-
-var monitoringRoleDefinitionId = '3913510d-42f4-4e42-8a64-420c390055eb' // Monitoring Metrics Publisher role ID
-
-// Allow access from api to application insights using a managed identity
-module appInsightsRoleAssignmentApi './core/monitor/appinsights-access.bicep' = {
-  name: 'appInsightsRoleAssignmentapi'
+ 
+module monitoring 'br/public:avm/res/insights/component:0.6.0' = {
+  name: '${uniqueString(deployment().name, location)}-appinsights'
   scope: rg
   params: {
-    appInsightsName: monitoring.outputs.applicationInsightsName
-    roleDefinitionID: monitoringRoleDefinitionId
-    principalID: apiUserAssignedIdentity.outputs.identityPrincipalId
+    name: !empty(applicationInsightsName) ? applicationInsightsName : '${abbrs.insightsComponents}${resourceToken}'
+    location: location
+    tags: tags
+    workspaceResourceId: logAnalytics.outputs.resourceId
+    disableLocalAuth: true
   }
 }
 
 // App outputs
-output APPLICATIONINSIGHTS_CONNECTION_STRING string = monitoring.outputs.applicationInsightsConnectionString
+output APPLICATIONINSIGHTS_CONNECTION_STRING string = monitoring.outputs.name
 output AZURE_LOCATION string = location
 output AZURE_TENANT_ID string = tenant().tenantId
 output SERVICE_API_NAME string = api.outputs.SERVICE_API_NAME

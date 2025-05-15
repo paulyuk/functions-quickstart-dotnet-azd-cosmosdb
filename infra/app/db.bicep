@@ -155,6 +155,7 @@ resource userRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssign
 }
  
 output cosmosDbName string = cosmosDbDatabase.name
+output cosmosDbAccountName string = cosmosDbAccount.name
 output cosmosDbContainer string = cosmosDbContainer.name
 output cosmosDbAccountEndpoint string = cosmosDbAccount.properties.documentEndpoint
 output cosmosDbEndpoint string = cosmosDbAccount.properties.documentEndpoint
