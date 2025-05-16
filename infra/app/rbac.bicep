@@ -6,12 +6,15 @@ param allowUserIdentityPrincipal bool = false // Flag to enable user identity ro
 param enableBlob bool = true
 param enableQueue bool = false
 param enableTable bool = false
+param cosmosDbAccountName string = ''
+param enableCosmosDb bool = false
 
 // Define Role Definition IDs internally
 var storageRoleDefinitionId  = 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b' //Storage Blob Data Owner role
 var queueRoleDefinitionId = '974c5e8b-45b9-4653-ba55-5f855dd0fb88' // Storage Queue Data Contributor role
 var tableRoleDefinitionId = '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3' // Storage Table Data Contributor role
 var monitoringRoleDefinitionId = '3913510d-42f4-4e42-8a64-420c390055eb' // Monitoring Metrics Publisher role ID
+var cosmosDbDataContributorRoleDefinitionId = '00000000-0000-0000-0000-000000000002' // Cosmos DB Data Contributor role
 
 resource storageAccount 'Microsoft.Storage/storageAccounts@2022-09-01' existing = {
   name: storageAccountName
@@ -19,6 +22,10 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2022-09-01' existing 
 
 resource applicationInsights 'Microsoft.Insights/components@2020-02-02' existing = {
   name: appInsightsName
+}
+
+resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' existing = if (!empty(cosmosDbAccountName) && enableCosmosDb) {
+  name: cosmosDbAccountName
 }
 
 // Role assignment for Storage Account (Blob) - Managed Identity
@@ -106,5 +113,27 @@ resource appInsightsRoleAssignment_User 'Microsoft.Authorization/roleAssignments
     roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', monitoringRoleDefinitionId)
     principalId: userIdentityPrincipalId // Use user identity ID
     principalType: 'User' // User Identity is a User Principal
+  }
+}
+
+// Cosmos DB Role assignment for Managed Identity
+resource cosmosDbAppRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-11-15' = if (!empty(cosmosDbAccountName) && enableCosmosDb) {
+  name: guid(cosmosDbDataContributorRoleDefinitionId, managedIdentityPrincipalId, cosmosDbAccount.id)
+  parent: cosmosDbAccount
+  properties: {
+    principalId: managedIdentityPrincipalId
+    roleDefinitionId: cosmosDbDataContributorRoleDefinitionId
+    scope: cosmosDbAccount.id
+  }
+}
+
+// Cosmos DB Role assignment for User Identity
+resource cosmosDbUserRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-11-15' = if (!empty(cosmosDbAccountName) && enableCosmosDb && !empty(userIdentityPrincipalId)) {
+  name: guid(cosmosDbDataContributorRoleDefinitionId, userIdentityPrincipalId, cosmosDbAccount.id)
+  parent: cosmosDbAccount
+  properties: {
+    principalId: userIdentityPrincipalId
+    roleDefinitionId: cosmosDbDataContributorRoleDefinitionId
+    scope: cosmosDbAccount.id
   }
 }

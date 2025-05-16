@@ -160,8 +160,6 @@ module cosmosDb './app/db.bicep' = {
     tags: tags
     databaseName: cosmosSettings.database
     containerName: cosmosSettings.container
-    appPrincipalIds: [apiUserAssignedIdentity.outputs.principalId]
-    userPrincipalId: principalId
     vnetEnabled: vnetEnabled
   }
 }
@@ -213,6 +211,8 @@ module rbac 'app/rbac.bicep' = {
     enableBlob: storageEndpointConfig.enableBlob
     enableQueue: storageEndpointConfig.enableQueue
     enableTable: storageEndpointConfig.enableTable
+    enableCosmosDb: true
+    cosmosDbAccountName: cosmosDb.outputs.cosmosDbAccountName
     allowUserIdentityPrincipal: storageEndpointConfig.allowUserIdentityPrincipal
   }
 }
