@@ -15,6 +15,7 @@ var queueRoleDefinitionId = '974c5e8b-45b9-4653-ba55-5f855dd0fb88' // Storage Qu
 var tableRoleDefinitionId = '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3' // Storage Table Data Contributor role
 var monitoringRoleDefinitionId = '3913510d-42f4-4e42-8a64-420c390055eb' // Monitoring Metrics Publisher role ID
 var cosmosDbDataContributorRoleDefinitionId = '00000000-0000-0000-0000-000000000002' // Cosmos DB Data Contributor role
+var cosmosFQRoleID = '/subscriptions/${subscription().subscriptionId}/resourceGroups/${resourceGroup().name}/providers/Microsoft.DocumentDB/databaseAccounts/${cosmosDbAccountName}/sqlRoleDefinitions/${cosmosDbDataContributorRoleDefinitionId}'
 
 resource storageAccount 'Microsoft.Storage/storageAccounts@2022-09-01' existing = {
   name: storageAccountName
@@ -118,22 +119,22 @@ resource appInsightsRoleAssignment_User 'Microsoft.Authorization/roleAssignments
 
 // Cosmos DB Role assignment for Managed Identity
 resource cosmosDbAppRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-11-15' = if (!empty(cosmosDbAccountName) && enableCosmosDb) {
-  name: guid(cosmosDbAccount.id, managedIdentityPrincipalId, cosmosDbDataContributorRoleDefinitionId)
+  name: guid(cosmosDbDataContributorRoleDefinitionId, managedIdentityPrincipalId, cosmosDbAccount.id)
   parent: cosmosDbAccount
   properties: {
     principalId: managedIdentityPrincipalId
-    roleDefinitionId: cosmosDbDataContributorRoleDefinitionId
+    roleDefinitionId: cosmosFQRoleID
     scope: cosmosDbAccount.id
   }
 }
 
 // Cosmos DB Role assignment for User Identity
-resource cosmosDbUserRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-11-15' = if (!empty(cosmosDbAccountName) && enableCosmosDb && !empty(userIdentityPrincipalId)) {
-  name: guid(cosmosDbAccount.id, userIdentityPrincipalId, cosmosDbDataContributorRoleDefinitionId)
+resource cosmosDbUserRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-11-15' = if (allowUserIdentityPrincipal && !empty(cosmosDbAccountName) && enableCosmosDb && !empty(userIdentityPrincipalId)) {
+  name: guid(cosmosDbDataContributorRoleDefinitionId, userIdentityPrincipalId, cosmosDbAccount.id)
   parent: cosmosDbAccount
   properties: {
     principalId: userIdentityPrincipalId
-    roleDefinitionId: cosmosDbDataContributorRoleDefinitionId
+    roleDefinitionId: cosmosFQRoleID
     scope: cosmosDbAccount.id
   }
 }
