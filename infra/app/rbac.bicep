@@ -118,7 +118,7 @@ resource appInsightsRoleAssignment_User 'Microsoft.Authorization/roleAssignments
 
 // Cosmos DB Role assignment for Managed Identity
 resource cosmosDbAppRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-11-15' = if (!empty(cosmosDbAccountName) && enableCosmosDb) {
-  name: guid(cosmosDbDataContributorRoleDefinitionId, managedIdentityPrincipalId, cosmosDbAccount.id)
+  name: guid(cosmosDbAccount.id, managedIdentityPrincipalId, cosmosDbDataContributorRoleDefinitionId)
   parent: cosmosDbAccount
   properties: {
     principalId: managedIdentityPrincipalId
@@ -129,7 +129,7 @@ resource cosmosDbAppRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRol
 
 // Cosmos DB Role assignment for User Identity
 resource cosmosDbUserRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-11-15' = if (!empty(cosmosDbAccountName) && enableCosmosDb && !empty(userIdentityPrincipalId)) {
-  name: guid(cosmosDbDataContributorRoleDefinitionId, userIdentityPrincipalId, cosmosDbAccount.id)
+  name: guid(cosmosDbAccount.id, managedIdentityPrincipalId, cosmosDbDataContributorRoleDefinitionId)
   parent: cosmosDbAccount
   properties: {
     principalId: userIdentityPrincipalId
