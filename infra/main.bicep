@@ -285,8 +285,10 @@ output AZURE_LOCATION string = location
 output AZURE_TENANT_ID string = tenant().tenantId
 output SERVICE_API_NAME string = api.outputs.SERVICE_API_NAME
 output AZURE_FUNCTION_NAME string = api.outputs.SERVICE_API_NAME
+output RESOURCE_GROUP string = rg.name
 
 // Cosmos DB Outputs
 output COSMOS_CONNECTION__accountEndpoint string = cosmosDb.outputs.cosmosDbAccountEndpoint
 output COSMOS_DATABASE_NAME string = cosmosSettings.database
 output COSMOS_CONTAINER_NAME string = cosmosSettings.container
+output AZURE_COSMOSDB_ACCOUNT_NAME string = cosmosDb.outputs.cosmosDbAccountName
