@@ -28,19 +28,6 @@ else
     # Get the client IP
     ClientIP=$(curl -s https://api.ipify.org)
 
-    # Check and update Azure OpenAI network rules
-    Rules=$(az cognitiveservices account show --resource-group "$ResourceGroup" --name "$OpenAIResourceName" --query "properties.networkAcls.ipRules" -o json)
-    IPExists=$(echo "$Rules" | jq -r --arg ip "$ClientIP" '.[] | select(.value == $ip) | .value')
-
-    if [[ -z $IPExists ]]; then
-        echo "Adding the client IP $ClientIP to the network rule of the Azure OpenAI service $OpenAIResourceName"
-        az cognitiveservices account network-rule add --resource-group "$ResourceGroup" --name "$OpenAIResourceName" --ip-address "$ClientIP" > /dev/null
-        OpenAIResourceId=$(az cognitiveservices account show --resource-group "$ResourceGroup" --name "$OpenAIResourceName" --query id -o tsv)
-        az resource update --ids "$OpenAIResourceId" --set properties.publicNetworkAccess="Enabled" > /dev/null
-    else
-        echo "The client IP $ClientIP is already in the network rule of the Azure OpenAI service $OpenAIResourceName"
-    fi
-
     # Check and update Azure CosmosDB network rules
     Rules=$(az cosmosdb show --resource-group "$ResourceGroup" --name "$CosmosDBResourceName" --query "ipRules" -o json)
     IPExists=$(echo "$Rules" | jq -r --arg ip "$ClientIP" '.[] | select(.value == $ip) | .value')
