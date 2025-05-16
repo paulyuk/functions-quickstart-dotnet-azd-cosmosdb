@@ -18,7 +18,7 @@ done <<< "$output"
 # Read the config.json file to see if vnet is enabled
 ConfigFolder=$(echo "$ResourceGroup" | cut -d '-' -f 2-)
 jsonContent=$(cat ".azure/$ConfigFolder/config.json")
-EnableVirtualNetwork=$(echo "$jsonContent" | jq -r '.infra.parameters.EnableVirtualNetwork')
+EnableVirtualNetwork=$(echo "$jsonContent" | jq -r '.infra.parameters.vnetEnabled')
 
 if [[ $EnableVirtualNetwork == "false" ]]; then
     echo "VNet is not enabled. Skipping adding the client IP to the network rule of the Azure OpenAI and the Azure Cosmos DB services"
