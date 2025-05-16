@@ -86,12 +86,15 @@ This serverless architecture enables highly scalable, event-driven processing wi
 
 5. Deploy to Azure
    ```bash
-   azd deploy
+   azd up
    ```
    This will build your function app and deploy it to Azure. The deployment process:
-   - Builds the .NET project
-   - Publishes the function app
+   - Checks for any bicep changes using `azd provision`
+   - Builds the .NET project using `azd package`
+   - Publishes the function app using `azd deploy`
    - Updates application settings in Azure
+
+   > **Note:** If you deploy with `vnetEnabled=true`, see the [Networking and VNet Integration](#networking-and-vnet-integration) section below for important details about accessing Cosmos DB and Data Explorer from your developer machine.
 
 6. Test the deployed function by adding another document to your Cosmos DB container through the Azure Portal:
    - Navigate to your Cosmos DB account in the Azure Portal
@@ -151,6 +154,12 @@ You can monitor your function in the Azure Portal:
 4. Select "Monitor" to view execution logs
 
 Use the "Live Metrics" feature to see real-time information when testing.
+
+## Networking and VNet Integration
+
+If you deploy with `vnetEnabled=true`, all access to Cosmos DB is restricted to the private endpoint and the connected virtual network. This enhances security by blocking public access to your database.
+
+**Important:** When `vnetEnabled=true`, you must manually add your developer machine's public IP address to the Cosmos DB account's networking firewall allow list in the Azure Portal. This is required to use Data Explorer and other tools from your local machine. Without this, you will not be able to access Cosmos DB from outside the VNet, even for development and troubleshooting.
 
 ## Resources
 
