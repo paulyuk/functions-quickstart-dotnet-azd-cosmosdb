@@ -132,6 +132,11 @@ module api './app/api.bicep' = {
     identityId: apiUserAssignedIdentity.outputs.resourceId
     identityClientId: apiUserAssignedIdentity.outputs.clientId
     appSettings: {
+      COSMOS_CONNECTION__accountEndpoint: cosmosDb.outputs.cosmosDbAccountEndpoint
+      COSMOS_CONNECTION__clientId: apiUserAssignedIdentity.outputs.clientId
+      COSMOS_CONNECTION__credential: 'managedidentity'
+      COSMOS_CONTAINER_NAME: cosmosSettings.container
+      COSMOS_DATABASE_NAME: cosmosSettings.database
     }
     virtualNetworkSubnetId: vnetEnabled ? serviceVirtualNetwork.outputs.appSubnetID : ''
   }
@@ -157,6 +162,7 @@ module cosmosDb './app/db.bicep' = {
     containerName: cosmosSettings.container
     appPrincipalIds: [apiUserAssignedIdentity.outputs.principalId]
     userPrincipalId: principalId
+    vnetEnabled: vnetEnabled
   }
 }
 
@@ -234,6 +240,18 @@ module storagePrivateEndpoint 'app/storage-PrivateEndpoint.bicep' = if (vnetEnab
     enableBlob: storageEndpointConfig.enableBlob
     enableQueue: storageEndpointConfig.enableQueue
     enableTable: storageEndpointConfig.enableTable
+  }
+}
+
+module dbPrivateEndpoint 'app/db-PrivateEndpoint.bicep' = if (vnetEnabled) {
+  name: 'dbPrivateEndpoint'
+  scope: rg
+  params: {
+    cosmosDbAccountId: cosmosDb.outputs.cosmosDbAccountId
+    vNetName: !empty(vNetName) ? vNetName : '${abbrs.networkVirtualNetworks}${resourceToken}'
+    dbSubnetName: serviceVirtualNetwork.outputs.dbSubnetName
+    location: location
+    tags: tags
   }
 }
 

@@ -4,11 +4,14 @@ param vNetName string
 @description('Specifies the location.')
 param location string = resourceGroup().location
 
-@description('Specifies the name of the subnet for the Service Bus private endpoint.')
+@description('Specifies the name of the subnet for the storage dependency private endpoint.')
 param peSubnetName string = 'private-endpoints-subnet'
 
 @description('Specifies the name of the subnet for Function App virtual network integration.')
 param appSubnetName string = 'app'
+
+@description('Specifies the name of the subnet for the database private endpoint.')
+param dbSubnetName string = 'db-private-endpoints-subnet'
 
 param tags object = {}
 
@@ -38,6 +41,12 @@ module virtualNetwork 'br/public:avm/res/network/virtual-network:0.6.1' = {
         privateLinkServiceNetworkPolicies: 'Enabled'
         delegation: 'Microsoft.App/environments'
       }
+      {
+        name: dbSubnetName
+        addressPrefix: '10.0.3.0/24'
+        privateEndpointNetworkPolicies: 'Disabled'
+        privateLinkServiceNetworkPolicies: 'Enabled'
+      }
     ]
   }
 }
@@ -46,3 +55,5 @@ output peSubnetName string = peSubnetName
 output peSubnetID string = '${virtualNetwork.outputs.resourceId}/subnets/${peSubnetName}'
 output appSubnetName string = appSubnetName
 output appSubnetID string = '${virtualNetwork.outputs.resourceId}/subnets/${appSubnetName}'
+output dbSubnetName string = dbSubnetName
+output dbSubnetID string = '${virtualNetwork.outputs.resourceId}/subnets/${dbSubnetName}'

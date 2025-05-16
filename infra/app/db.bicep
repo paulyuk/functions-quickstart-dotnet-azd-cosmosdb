@@ -24,6 +24,11 @@ param setThroughput bool = false
 @description('Enables autoscale. If setThroughput is enabled, defaults to false.')
 param autoscale bool = true
 
+@description('Whether VNet integration is enabled for Cosmos DB. If true, disables public network access.')
+param vnetEnabled bool = false
+
+var publicNetworkAccess = vnetEnabled ? 'Disabled' : 'Enabled'
+
 var options = setThroughput
   ? autoscale
       ? {
@@ -50,6 +55,7 @@ resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' = {
       }
     ]
     disableLocalAuth: true
+    publicNetworkAccess: publicNetworkAccess
     capabilities: union(
       (enableServerless)
         ? [
@@ -159,3 +165,4 @@ output cosmosDbAccountName string = cosmosDbAccount.name
 output cosmosDbContainer string = cosmosDbContainer.name
 output cosmosDbAccountEndpoint string = cosmosDbAccount.properties.documentEndpoint
 output cosmosDbEndpoint string = cosmosDbAccount.properties.documentEndpoint
+output cosmosDbAccountId string = cosmosDbAccount.id
