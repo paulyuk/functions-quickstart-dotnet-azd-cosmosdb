@@ -129,7 +129,7 @@ resource cosmosDbAppRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRol
 
 // Cosmos DB Role assignment for User Identity
 resource cosmosDbUserRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-11-15' = if (!empty(cosmosDbAccountName) && enableCosmosDb && !empty(userIdentityPrincipalId)) {
-  name: guid(cosmosDbAccount.id, managedIdentityPrincipalId, cosmosDbDataContributorRoleDefinitionId)
+  name: guid(cosmosDbAccount.id, userIdentityPrincipalId, cosmosDbDataContributorRoleDefinitionId)
   parent: cosmosDbAccount
   properties: {
     principalId: userIdentityPrincipalId
