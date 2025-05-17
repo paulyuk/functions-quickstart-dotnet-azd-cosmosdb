@@ -36,8 +36,9 @@ This serverless architecture enables highly scalable, event-driven processing wi
 ### Prerequisites
 
 - [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) or later
-- [Azure Developer CLI (azd)](https://docs.microsoft.com/azure/developer/azure-developer-cli/install-azd)
 - [Azure Functions Core Tools](https://docs.microsoft.com/azure/azure-functions/functions-run-local#install-the-azure-functions-core-tools)
+- [Azure Developer CLI (azd)](https://docs.microsoft.com/azure/developer/azure-developer-cli/install-azd)
+- [Azurite](https://github.com/Azure/Azurite)
 - An Azure subscription
 
 ### Quickstart
@@ -48,7 +49,18 @@ This serverless architecture enables highly scalable, event-driven processing wi
    cd functions-quickstart-dotnet-azd-cosmosdb
    ```
 
-2. Provision Azure resources using azd
+1. Make sure to run this before calling azd to provision resources so azd can run scripts required to setup permissions
+
+   Mac/Linux:
+   ```bash
+   chmod +x ./infra/scripts/*.sh 
+   ```
+   Windows:
+   ```Powershell
+   set-executionpolicy remotesigned
+   ```
+
+1. Provision Azure resources using azd
    ```bash
    azd provision
    ```
@@ -57,16 +69,29 @@ This serverless architecture enables highly scalable, event-driven processing wi
    - Azure Function App
    - App Service Plan
    - Other supporting resources
+   - local.settings.json for local development with Azure Functions Core Tools, which should look like this:
+   ```json
+      {
+      "IsEncrypted": false,
+      "Values": {
+         "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+         "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+         "COSMOS_CONNECTION__accountEndpoint": "https://{accountName}.documents.azure.com:443/",
+         "COSMOS_DATABASE_NAME": "documents-db",
+         "COSMOS_CONTAINER_NAME": "documents"
+      }
+   }
+   ```
 
    The `azd` command automatically sets up the required connection strings and application settings.
 
-3. Start the function locally
+1. Start the function locally
    ```bash
    func start
    ```
    Or use VS Code to run the project with the built-in Azure Functions extension by pressing F5.
 
-4. Test the function locally by creating a document in your Cosmos DB container
+1. Test the function locally by creating a document in your Cosmos DB container
 
    You can use Azure Portal or Azure CLI to create a document like this:
    ```json
@@ -84,16 +109,19 @@ This serverless architecture enables highly scalable, event-driven processing wi
    First document Id: doc-001
    ```
 
-5. Deploy to Azure
+1. Deploy to Azure
    ```bash
-   azd deploy
+   azd up
    ```
    This will build your function app and deploy it to Azure. The deployment process:
-   - Builds the .NET project
-   - Publishes the function app
+   - Checks for any bicep changes using `azd provision`
+   - Builds the .NET project using `azd package`
+   - Publishes the function app using `azd deploy`
    - Updates application settings in Azure
 
-6. Test the deployed function by adding another document to your Cosmos DB container through the Azure Portal:
+   > **Note:** If you deploy with `vnetEnabled=true`, see the [Networking and VNet Integration](#networking-and-vnet-integration) section below for important details about accessing Cosmos DB and Data Explorer from your developer machine.
+
+1. Test the deployed function by adding another document to your Cosmos DB container through the Azure Portal:
    - Navigate to your Cosmos DB account in the Azure Portal
    - Go to Data Explorer
    - Find your database and container
@@ -151,6 +179,12 @@ You can monitor your function in the Azure Portal:
 4. Select "Monitor" to view execution logs
 
 Use the "Live Metrics" feature to see real-time information when testing.
+
+## Networking and VNet Integration
+
+If you deploy with `vnetEnabled=true`, all access to Cosmos DB is restricted to the private endpoint and the connected virtual network. This enhances security by blocking public access to your database.
+
+**Important:** When `vnetEnabled=true`, it is a requirement to add your developer machine's public IP address to the Cosmos DB account's networking firewall allow list. *The deployment scripts included in this template run as a part of `azd provision` and handle this for you*.  Alternatively it can be done in the Azure Portal or Azure CLI.  
 
 ## Resources
 
