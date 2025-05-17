@@ -1,3 +1,21 @@
+<!--
+---
+name: Azure Functions C# CosmosDb Trigger using Azure Developer CLI
+description: This repository contains an Azure Functions CosmosDb trigger quickstart written in C# and deployed to Azure Functions Flex Consumption using the Azure Developer CLI (azd). The sample uses managed identity and a virtual network to make sure deployment is secure by default.
+page_type: sample
+products:
+- azure-functions
+- azure-cosmos-db
+- azure
+- entra-id
+urlFragment: starter-cosmosdb-trigger-python
+languages:
+- csharp
+- bicep
+- azdeveloper
+---
+-->
+
 # Azure Functions with Cosmos DB Trigger
 
 An Azure Functions QuickStart project that demonstrates how to use a Cosmos DB Trigger with Azure Developer CLI (azd) for quick and easy deployment.
