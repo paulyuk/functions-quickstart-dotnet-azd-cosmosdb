@@ -11,7 +11,7 @@ param serviceName string = 'api'
 param storageAccountName string
 param deploymentStorageContainerName string
 param virtualNetworkSubnetId string = ''
-param instanceMemoryMB int = 512
+param instanceMemoryMB int = 2048
 param maximumInstanceCount int = 100
 param identityId string = ''
 param identityClientId string = ''
